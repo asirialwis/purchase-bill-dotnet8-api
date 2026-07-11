@@ -14,6 +14,8 @@ builder.Services.AddHttpClient();
 
 // Register the Service Layer
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ILocationService, LocationService>();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
