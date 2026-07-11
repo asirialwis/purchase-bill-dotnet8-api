@@ -19,9 +19,7 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDto request)
     {
-        // [ApiController] automatically handles ModelState validation (the DTO Data Annotations)
-        // and returns a 400 Bad Request if it fails, so we don't need manual checking here.
-
+        
         var result = await _authService.AuthenticateAndSyncLocationsAsync(request);
 
         if (!result.IsSuccess)

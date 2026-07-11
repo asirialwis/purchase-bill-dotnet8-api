@@ -3,6 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using PurchaseBillAPI.Data;
 using PurchaseBillAPI.DTOs;
 using PurchaseBillAPI.Models;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.IdentityModel.Tokens;
+
 
 namespace PurchaseBillAPI.Services;
 
@@ -11,12 +15,14 @@ public class AuthService : IAuthService
     private readonly AppDbContext _context;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AuthService> _logger;
+    private readonly IConfiguration _configuration;
 
-    public AuthService(AppDbContext context, IHttpClientFactory httpClientFactory, ILogger<AuthService> logger)
+    public AuthService(AppDbContext context, IHttpClientFactory httpClientFactory, ILogger<AuthService> logger, IConfiguration configuration)
     {
         _context = context;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public async Task<(bool IsSuccess, string ErrorMessage, string? Token)> AuthenticateAndSyncLocationsAsync(LoginDto request)
@@ -63,6 +69,10 @@ public class AuthService : IAuthService
                 return (false, docMsg.GetString() ?? "Invalid Login Details.", null);
             }
 
+            // Extract User_Code and User_Display_Name
+            string userCode = firstUserObject.TryGetProperty("User_Code", out var uc) ? uc.GetString() ?? "Unknown" : "Unknown";
+            string userDisplayName = firstUserObject.TryGetProperty("User_Display_Name", out var udn) ? udn.GetString() ?? "Unknown" : "Unknown";
+
             // Extract and sync locations
             if (firstUserObject.TryGetProperty("User_Locations", out var locationsElement) && locationsElement.ValueKind == JsonValueKind.Array)
             {
@@ -78,8 +88,9 @@ public class AuthService : IAuthService
                 return (false, "Authentication succeeded but location data was missing.", null);
             }
 
-            // Hardcoded token
-            return (true, string.Empty, "enhanzer-auth-token");
+            // Generate the real JWT token
+            string token = GenerateJwtToken(request.Username, userCode, userDisplayName);
+            return (true, string.Empty, token);
         }
         catch (Exception ex)
         {
@@ -87,6 +98,36 @@ public class AuthService : IAuthService
             return (false, "An internal server error occurred while processing your request.", null);
         }
     }
+
+
+    private string GenerateJwtToken(string username, string userCode, string userDisplayName)
+    {
+        var secretKey = _configuration["JwtSettings:SecretKey"];
+        if (string.IsNullOrEmpty(secretKey)) throw new InvalidOperationException("JWT Secret Key is not configured.");
+
+        var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(secretKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        // Map the properties to standard JWT claims and custom claims
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, username),
+            new Claim(JwtRegisteredClaimNames.Email, username),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique token ID
+            new Claim("User_Code", userCode),
+            new Claim("User_Display_Name", userDisplayName)
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: _configuration["JwtSettings:Issuer"],
+            audience: _configuration["JwtSettings:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(double.Parse(_configuration["JwtSettings:ExpiryInMinutes"] ?? "60")),
+            signingCredentials: credentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
 
     private async Task SyncLocationsToDatabaseAsync(List<LocationDetail> locations)
     {
