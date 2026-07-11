@@ -28,7 +28,17 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = result.ErrorMessage });
         }
 
-        // 200 OK for success
+        // Set JWT as HttpOnly Cookie
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = false, // Set to true if using HTTPS in production
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTime.UtcNow.AddMinutes(60) // Same as JWT expiry
+        };
+        Response.Cookies.Append("auth_token", result.Token!, cookieOptions);
+
+        // 200 OK for success, also return the token so frontend can decode the payload
         return Ok(new 
         { 
             message = "Login successful", 
