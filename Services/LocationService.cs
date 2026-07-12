@@ -27,7 +27,7 @@ public class LocationService : ILocationService
         catch (Exception ex)
         {
             _logger.LogError(ex, "An error occurred while fetching locations from the database.");
-            // Return an empty list or throw a custom exception depending on  error handling strategy
+            // Return an empty list or throw a custom exception 
             return Enumerable.Empty<LocationDetail>(); 
         }
     }
