@@ -1,9 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PurchaseBillAPI.Services;
 
 namespace PurchaseBillAPI.Controllers;
 
-// [Authorize] // Uncomment this once JWT Authentication is implemented
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class LocationsController : ControllerBase
